@@ -27,25 +27,21 @@ endif
 # INITIALISATION
 # =============================================================================
 
-## Initialise le projet complet (venv + dépendances + .env)
-init:
+init: ## 🚀 Initialise le projet complet (venv + dépendances + .env)
 	@echo "🚀 Initialisation du projet DevOps Monitor..."
 	@echo ""
-
 	@# --- Venv ---
 	@echo "📦 Création du venv Python..."
 	$(PYTHON) -m venv $(VENV)
+	@chmod -R 755 $(VENV)
 	@echo "   ✅ Venv créé dans $(VENV)/"
 	@echo ""
-
 	@# --- Dépendances ---
 	@echo "📥 Installation des dépendances..."
 	$(VENV_PIP) install --upgrade pip --quiet
 	$(VENV_PIP) install -r requirements.txt --quiet
 	@echo "   ✅ Dépendances installées"
 	@echo ""
-
-	@# --- .env ---
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
 		echo "📋 Fichier .env créé depuis .env.example"; \
@@ -56,8 +52,6 @@ init:
 		echo "📋 Fichier .env déjà existant — non écrasé"; \
 	fi
 	@echo ""
-
-	@# --- Git ---
 	@if [ ! -d .git ]; then \
 		git init; \
 		git add .; \
@@ -66,81 +60,57 @@ init:
 	else \
 		echo "📁 Dépôt Git déjà existant — non réinitialisé"; \
 	fi
-	@echo ""
-
-	@echo "============================================"
 	@echo "✅ Projet initialisé avec succès !"
-	@echo ""
-	@echo "👉 Prochaines étapes :"
-	@echo "   1. Activer le venv :"
-	@echo "      source $(VENV_ACTIVATE)"
-	@echo "   2. Vérifier le .env :"
-	@echo "      cat .env"
-	@echo "   3. Lancer les tests :"
-	@echo "      make test"
-	@echo "   4. Démarrer la stack :"
-	@echo "      make up"
-	@echo "============================================"
 
 # =============================================================================
 # STACK DOCKER
 # =============================================================================
 
-## Démarre la stack complète en arrière-plan
-up:
+up: ## 🐳 Démarre la stack complète en arrière-plan
 	$(COMPOSE) up --build -d
 
-## Arrête la stack et supprime les volumes
-down:
+down: ## 🛑 Arrête la stack et supprime les volumes
 	$(COMPOSE) down -v
 
-## Affiche les logs en temps réel
-logs:
+logs: ## 📜 Affiche les logs en temps réel
 	$(COMPOSE) logs -f
 
-## Redémarre la stack
-restart: down up
+restart: down up ## 🔄 Redémarre la stack
 
 # =============================================================================
 # QUALITÉ DU CODE
 # =============================================================================
 
-## Lance les tests avec coverage
-test:
+test: ## 🧪 Lance les tests avec coverage
 	$(PYTEST)
 
-## Lance le linter flake8
-lint:
+lint: ## 🔍 Lance le linter flake8
 	flake8 api/ dashboard/ tests/ --max-line-length=88
 
-## Lance lint + tests
-check: lint test
+check: lint test ## ✅ Lance lint + tests
 
 # =============================================================================
-# DÉVELOPPEMENT LOCAL (sans Docker)
+# DÉVELOPPEMENT LOCAL
 # =============================================================================
 
-## Lance l'API et le dashboard sans Docker
-dev:
+dev: ## 🔧 Lance l'API et le dashboard sans Docker
 	@echo "🔧 Démarrage en mode développement..."
 	@echo "   API       → http://localhost:8000/docs"
 	@echo "   Dashboard → http://localhost:8501"
 	@trap 'kill %1 %2' INT; \
 	$(VENV_PYTHON) -m uvicorn api.main:app \
-	    --host 0.0.0.0 --port 8000 --reload & \
+		--host 0.0.0.0 --port 8000 --reload & \
 	$(VENV_PYTHON) -m streamlit run dashboard/app.py \
-	    --server.port=8501 \
-	    --server.address=localhost \
-	    --browser.gatherUsageStats=false & \
+		--server.port=8501 \
+		--server.address=localhost \
+		--browser.gatherUsageStats=false & \
 	wait
 
-## Lance uniquement l'API
-dev-api:
+dev-api: ## ⚡ Lance uniquement l'API
 	$(VENV_PYTHON) -m uvicorn api.main:app \
-	    --host 0.0.0.0 --port 8000 --reload
+		--host 0.0.0.0 --port 8000 --reload
 
-## Lance uniquement le dashboard
-run-dashboard:
+dev-dashboard: ## 🎨 Lance uniquement le dashboard
 	$(VENV_PYTHON) -m streamlit run dashboard/app.py \
 		--server.address localhost \
 		--server.port 8501
@@ -162,15 +132,13 @@ kill-ports: ## 🔪 Trouve et libère les ports 8000 et 8501
 	done
 	@echo "✅ Ports libérés. Lance 'make dev' pour redémarrer."
 
-## Supprime les fichiers de cache Python et de tests
-clean:
+clean: ## 🧹 Supprime les fichiers de cache Python et de tests
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 	rm -rf .pytest_cache .coverage htmlcov/
 	@echo "✅ Cache nettoyé"
 
-## Supprime tout (venv inclus) — repart de zéro
-clean-all: clean down
+clean-all: clean down ## 💣 Supprime tout (venv inclus) — repart de zéro
 	rm -rf $(VENV)
 	@echo "✅ Venv supprimé — relancer 'make init' pour tout recréer"
 
@@ -178,12 +146,18 @@ clean-all: clean down
 # AIDE
 # =============================================================================
 
-## Affiche cette aide
-help:
+.DEFAULT_GOAL := help
+
+help: ## 📋 Affiche cette aide
 	@echo ""
-	@echo "DevOps Monitor — Commandes disponibles"
-	@echo "======================================="
-	@grep -E '^## ' $(MAKEFILE_LIST) | \
-	    sed 's/## /  /' | \
-	    awk 'BEGIN {FS="\n"} {print}'
+	@echo "╔══════════════════════════════════════════════════════════╗"
+	@echo "║          🖥️  DevOps Monitoring Dashboard                 ║"
+	@echo "╚══════════════════════════════════════════════════════════╝"
+	@echo ""
+	@echo "📌 Commandes disponibles :"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "💡 Exemple : make dev"
 	@echo ""

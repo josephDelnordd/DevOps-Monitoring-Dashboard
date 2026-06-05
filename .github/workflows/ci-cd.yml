@@ -1,6 +1,5 @@
 # =============================================================================
 # DevOps Monitor — Pipeline CI/CD
-# Jobs : test → build → deploy
 # =============================================================================
 
 name: CI/CD Pipeline
@@ -12,16 +11,15 @@ on:
     branches: [main]
 
 env:
-  REGISTRY: ${{ secrets.ACR_NAME }}.azurecr.io
   API_IMAGE: devops-monitor-api
   DASHBOARD_IMAGE: devops-monitor-dashboard
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1 — Test : lint + tests unitaires (tous les pushs et PRs)
+  # Job 1 — Test
   # ---------------------------------------------------------------------------
   test:
-    name: Lint & Test
+    name: 🧪 Lint & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -53,10 +51,10 @@ jobs:
             --cov-fail-under=75
 
   # ---------------------------------------------------------------------------
-  # Job 2 — Build : construit et pousse les images vers ACR (main only)
+  # Job 2 — Build & Push Docker Hub
   # ---------------------------------------------------------------------------
   build:
-    name: Build & Push to ACR
+    name: 🐳 Build & Push to Docker Hub
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -65,69 +63,54 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Log in to Azure Container Registry
-        uses: azure/docker-login@v1
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          login-server: ${{ env.REGISTRY }}
-          username: ${{ secrets.ACR_NAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push API image
         run: |
-          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.API_IMAGE }}:${{ github.sha }}"
-          IMAGE_LATEST="${{ env.REGISTRY }}/${{ env.API_IMAGE }}:latest"
+          IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.API_IMAGE }}:${{ github.sha }}"
+          IMAGE_LATEST="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.API_IMAGE }}:latest"
           docker build -f api/Dockerfile -t "$IMAGE_TAG" -t "$IMAGE_LATEST" .
           docker push "$IMAGE_TAG"
           docker push "$IMAGE_LATEST"
 
       - name: Build and push Dashboard image
         run: |
-          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.DASHBOARD_IMAGE }}:${{ github.sha }}"
-          IMAGE_LATEST="${{ env.REGISTRY }}/${{ env.DASHBOARD_IMAGE }}:latest"
+          IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DASHBOARD_IMAGE }}:${{ github.sha }}"
+          IMAGE_LATEST="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DASHBOARD_IMAGE }}:latest"
           docker build -f dashboard/Dockerfile -t "$IMAGE_TAG" -t "$IMAGE_LATEST" .
           docker push "$IMAGE_TAG"
           docker push "$IMAGE_LATEST"
 
   # ---------------------------------------------------------------------------
-  # Job 3 — Deploy : met à jour les Azure Container Apps (main only)
+  # Job 3 — Deploy Azure via Publish Profile
   # ---------------------------------------------------------------------------
   deploy:
-    name: Deploy to Azure Container Apps
+    name: 🚀 Deploy to Azure Web Apps
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Azure Login
-        uses: azure/login@v1
+      - name: Deploy API → Azure Web App
+        uses: azure/webapps-deploy@v3
         with:
-          creds: |
-            {
-              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
-              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
-              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
-              "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
-            }
+          app-name: ${{ secrets.AZURE_WEBAPP_API_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_API_PUBLISH_PROFILE }}
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.API_IMAGE }}:${{ github.sha }}
 
-      - name: Deploy API to Container Apps
-        run: |
-          az containerapp update \
-            --name devops-monitor-api \
-            --resource-group devops-monitor-rg \
-            --image "${{ env.REGISTRY }}/${{ env.API_IMAGE }}:${{ github.sha }}" \
-            --set-env-vars "API_KEY=${{ secrets.API_KEY }}"
+      - name: Deploy Dashboard → Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_DASHBOARD_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_DASHBOARD_PUBLISH_PROFILE }}
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DASHBOARD_IMAGE }}:${{ github.sha }}
 
-      - name: Deploy Dashboard to Container Apps
+      - name: ✅ Summary
         run: |
-          az containerapp update \
-            --name devops-monitor-dashboard \
-            --resource-group devops-monitor-rg \
-            --image "${{ env.REGISTRY }}/${{ env.DASHBOARD_IMAGE }}:${{ github.sha }}" \
-            --set-env-vars \
-              "API_KEY=${{ secrets.API_KEY }}" \
-              "API_BASE_URL=https://devops-monitor-api.<env>.azurecontainerapps.io"
-
-      - name: Verify deployment
-        run: |
-          echo "✅ Deployment triggered successfully"
-          echo "API SHA: ${{ github.sha }}"
+          echo "✅ Deployed successfully"
+          echo "🌐 API       : https://${{ secrets.AZURE_WEBAPP_API_NAME }}.azurewebsites.net"
+          echo "🌐 Dashboard : https://${{ secrets.AZURE_WEBAPP_DASHBOARD_NAME }}.azurewebsites.net"
