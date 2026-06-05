@@ -1,7 +1,7 @@
 """
 Modèles de données pour le monitoring des serveurs.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from pydantic import BaseModel, field_validator
 
